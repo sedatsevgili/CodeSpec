@@ -1,1 +1,1 @@
-// Parser exports — to be implemented in Tasks #4-5
+export { parse, parseModule, ParseError } from "./parser.js";
