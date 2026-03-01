@@ -1,4 +1,8 @@
 import { Command } from "commander";
+import { createAnalyzeCommand } from "./commands/analyze.js";
+import { createGenerateCommand } from "./commands/generate.js";
+import { createValidateCommand } from "./commands/validate.js";
+import { createDiffCommand } from "./commands/diff.js";
 
 /** Creates and configures the CodeSpec CLI. */
 export function createCli(): Command {
@@ -11,7 +15,10 @@ export function createCli(): Command {
     )
     .version("0.1.0");
 
-  // Commands will be registered here in later tasks
+  program.addCommand(createAnalyzeCommand());
+  program.addCommand(createGenerateCommand());
+  program.addCommand(createValidateCommand());
+  program.addCommand(createDiffCommand());
 
   return program;
 }
