@@ -774,7 +774,8 @@ function analyzeThrowNode(stmt: PhpThrow): StatementNode {
   // throw new ExceptionType("message")
   if (what.kind === "new") {
     const newExpr = what as PhpNew;
-    const errorName = getNodeName(newExpr.what as PhpIdentifier);
+    // Strip PHP namespace prefix (leading backslashes) from error names
+    const errorName = getNodeName(newExpr.what as PhpIdentifier).replace(/^\\+/, "");
     const args = newExpr.arguments;
     let message: string | undefined;
     if (args.length > 0) {
