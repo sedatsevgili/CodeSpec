@@ -7,17 +7,17 @@ MODULE Calculator {
   }
 
   ACTION add(number: Float) -> Float {
-    SET state = number
+    SET state = state + number
     RETURN state
   }
 
   ACTION subtract(number: Float) -> Float {
-    SET state = number
+    SET state = state - number
     RETURN state
   }
 
   ACTION muliply(number: Float) -> Float {
-    SET state = number
+    SET state = state * number
     RETURN state
   }
 
@@ -25,7 +25,7 @@ MODULE Calculator {
     WHEN number === 0.0 {
       FAIL RuntimeException "Can not divide by 0"
     }
-    SET state = number
+    SET state = state / number
     RETURN state
   }
 }

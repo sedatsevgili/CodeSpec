@@ -814,26 +814,35 @@ function analyzeExprStatement(
 ): void {
   const expr = stmt.expression;
 
-  // Assignment: $x = value
+  // Assignment: $x = value, $x += value, etc.
   if (expr.kind === "assign") {
     const assignExpr = expr as PhpAssign;
     const varName = expressionToString(assignExpr.left);
     const right = assignExpr.right;
+    const op = assignExpr.operator;
 
-    // Check if RHS is a function/method call
-    const callResult = tryExtractPhpCall(right, depNames, stateReads, stateWrites);
-    if (callResult) {
-      out.push(
-        call({
-          target: callResult.target,
-          args: callResult.args,
-          assignTo: varName,
-        }),
-      );
+    // Simple assignment: check if RHS is a function/method call
+    if (op === "=") {
+      const callResult = tryExtractPhpCall(right, depNames, stateReads, stateWrites);
+      if (callResult) {
+        out.push(
+          call({
+            target: callResult.target,
+            args: callResult.args,
+            assignTo: varName,
+          }),
+        );
+        return;
+      }
+
+      out.push(set({ variable: varName, value: expressionToString(right) }));
       return;
     }
 
-    out.push(set({ variable: varName, value: expressionToString(right) }));
+    // Compound assignment: +=, -=, *=, /=, etc. → SET x = x <op> value
+    const baseOp = op.replace("=", "");
+    const rightStr = expressionToString(right);
+    out.push(set({ variable: varName, value: `${varName} ${baseOp} ${rightStr}` }));
     return;
   }
 
