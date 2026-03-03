@@ -305,15 +305,14 @@ function analyzeProgram(program: PhpProgram, moduleName: string): ModuleNode {
   }
 
   // 2. Extract classes (properties -> fields, methods -> ACTIONs)
+  //    Skip exception/error classes — they are not service modules.
   for (const node of topNodes) {
     if (node.kind === "class") {
-      analyzeClassNode(
-        node as PhpClass,
-        members,
-        dependencyNames,
-        stateReads,
-        stateWrites,
-      );
+      const cls = node as PhpClass;
+      if (isExceptionClass(cls)) {
+        continue;
+      }
+      analyzeClassNode(cls, members, dependencyNames, stateReads, stateWrites);
     }
   }
 
@@ -480,6 +479,20 @@ function getIdentifierName(node: PhpIdentifier | PhpNode): string {
 
 // ---- Class analysis -------------------------------------------------------
 
+/** Check whether a PHP class extends Exception or Error (skip for analysis). */
+function isExceptionClass(cls: PhpClass): boolean {
+  if (!cls.extends) return false;
+  const parentName = getNodeName(cls.extends);
+  const exceptionParents = new Set([
+    "Exception", "\\Exception", "RuntimeException", "\\RuntimeException",
+    "LogicException", "\\LogicException", "InvalidArgumentException",
+    "\\InvalidArgumentException", "Error", "\\Error",
+  ]);
+  if (exceptionParents.has(parentName)) return true;
+  // Also match names ending with Exception or Error
+  return parentName.endsWith("Exception") || parentName.endsWith("Error");
+}
+
 /**
  * Analyze a PHP class declaration.
  *
@@ -520,9 +533,11 @@ function analyzeClassNode(
     }
   }
 
-  // Extract methods as ACTIONs
+  // Extract methods as ACTIONs (skip constructors and magic methods)
   for (const member of cls.body) {
     if (member.kind === "method") {
+      const methodName = getNodeName((member as PhpMethod).name);
+      if (methodName.startsWith("__")) continue;
       const methodNode = analyzeMethodNode(
         member as PhpMethod,
         depNames,
@@ -955,16 +970,35 @@ function detectStateAccess(
   stateReads: Map<string, TypeReference>,
   stateWrites: Map<string, TypeReference>,
 ): void {
+  // Sanitize PHP-specific names to valid CodeSpec identifiers
+  const name = sanitizePhpName(objText);
+  if (!name) return;
+
   if (READ_METHODS.has(methodName)) {
-    if (!stateReads.has(objText)) {
-      stateReads.set(objText, namedType(objText));
+    if (!stateReads.has(name)) {
+      stateReads.set(name, namedType(name));
     }
   }
   if (WRITE_METHODS.has(methodName)) {
-    if (!stateWrites.has(objText)) {
-      stateWrites.set(objText, namedType(objText));
+    if (!stateWrites.has(name)) {
+      stateWrites.set(name, namedType(name));
     }
   }
+}
+
+/** Sanitize a PHP expression to a valid CodeSpec identifier for STATE names. */
+function sanitizePhpName(name: string): string | undefined {
+  // Strip $this-> prefix → just the property name
+  if (name.startsWith("$this->")) {
+    return name.slice(7);
+  }
+  // Strip $ prefix
+  if (name.startsWith("$")) {
+    return name.slice(1);
+  }
+  // Skip if it's just "$this" with no property
+  if (name === "this") return undefined;
+  return name;
 }
 
 // ---- Dependency collection ------------------------------------------------
@@ -1046,7 +1080,7 @@ function expressionToString(node: PhpNode): string {
     case "variable": {
       const varNode = node as PhpVariable;
       const name = typeof varNode.name === "string" ? varNode.name : expressionToString(varNode.name as PhpNode);
-      return `$${name}`;
+      return name;
     }
     case "string": {
       const strNode = node as PhpString;
@@ -1064,7 +1098,11 @@ function expressionToString(node: PhpNode): string {
       return getIdentifierName(node as PhpIdentifier);
     case "propertylookup": {
       const lookup = node as PhpPropertyLookup;
-      return `${expressionToString(lookup.what)}->${getNodeName(lookup.offset as PhpIdentifier)}`;
+      const obj = expressionToString(lookup.what);
+      const prop = getNodeName(lookup.offset as PhpIdentifier);
+      // $this->prop → just "prop" for cleaner CodeSpec output
+      if (obj === "this") return prop;
+      return `${obj}.${prop}`;
     }
     case "staticlookup": {
       const lookup = node as PhpStaticLookup;

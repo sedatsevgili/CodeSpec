@@ -290,9 +290,11 @@ function generateReturn(node: ReturnNode, depth: number): string {
  */
 function generateFail(node: FailNode, depth: number): string {
   const indent = makeIndent(depth);
-  const className = node.error.endsWith("Error")
-    ? node.error.replace(/Error$/, "Exception")
-    : `${node.error}Exception`;
+  const className = node.error.endsWith("Exception")
+    ? node.error
+    : node.error.endsWith("Error")
+      ? node.error.replace(/Error$/, "Exception")
+      : `${node.error}Exception`;
   if (node.message) {
     return `${indent}throw new ${className}(${phpString(node.message)});`;
   }

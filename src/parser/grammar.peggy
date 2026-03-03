@@ -344,9 +344,12 @@ SetStatement
 // ---- CALL (standalone, not inside SET) ------------------------------------
 
 CallStatement
-  = "CALL" __ target:Identifier _ "(" _ args:ArgumentList _ ")" {
+  = "CALL" __ target:DottedIdentifier _ "(" _ args:ArgumentList _ ")" {
       return { type: "Call", target, args, loc: location() };
     }
+
+DottedIdentifier "dotted identifier"
+  = $([a-zA-Z_][a-zA-Z0-9_.]*)
 
 // ---- RETURN ---------------------------------------------------------------
 
@@ -520,7 +523,7 @@ EnumValueList
 
 // Expression used in SET rhs — tries CALL first, then falls back to raw text
 Expression
-  = "CALL" __ target:Identifier _ "(" _ args:ArgumentList _ ")" {
+  = "CALL" __ target:DottedIdentifier _ "(" _ args:ArgumentList _ ")" {
       return "CALL " + target + "(" + args.join(", ") + ")";
     }
   / chars:$[^\n\r}]+ {

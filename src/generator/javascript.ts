@@ -291,7 +291,9 @@ function generateReturn(node: ReturnNode, depth: number): string {
  */
 function generateFail(node: FailNode, depth: number): string {
   const indent = makeIndent(depth);
-  const className = node.error.endsWith("Error") ? node.error : `${node.error}Error`;
+  const className = node.error.endsWith("Error") || node.error.endsWith("Exception")
+    ? node.error
+    : `${node.error}Error`;
   if (node.message) {
     return `${indent}throw new ${className}(${JSON.stringify(node.message)});`;
   }

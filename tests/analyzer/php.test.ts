@@ -218,7 +218,7 @@ describe("PHP Analyzer", () => {
         expect(act.body).toHaveLength(2);
         expect(act.body[0].type).toBe("When");
         const whenNode = act.body[0] as WhenNode;
-        expect(whenNode.condition).toContain("$x");
+        expect(whenNode.condition).toContain("x");
         expect(whenNode.body).toHaveLength(1);
         expect(whenNode.body[0].type).toBe("Return");
       });
@@ -346,7 +346,7 @@ describe("PHP Analyzer", () => {
       `);
       expect(act.body[0].type).toBe("Set");
       const setNode = act.body[0] as SetNode;
-      expect(setNode.variable).toBe("$x");
+      expect(setNode.variable).toBe("x");
       expect(setNode.value).toBe("42");
     });
 
@@ -360,7 +360,7 @@ describe("PHP Analyzer", () => {
       expect(act.body[0].type).toBe("Call");
       const callNode = act.body[0] as CallNode;
       expect(callNode.target).toBe("transform");
-      expect(callNode.assignTo).toBe("$result");
+      expect(callNode.assignTo).toBe("result");
     });
 
     it("should map variable with method call to CALL with assignTo", () => {
@@ -372,8 +372,8 @@ describe("PHP Analyzer", () => {
       `);
       expect(act.body[0].type).toBe("Call");
       const callNode = act.body[0] as CallNode;
-      expect(callNode.target).toBe("$db.findById");
-      expect(callNode.assignTo).toBe("$user");
+      expect(callNode.target).toBe("db.findById");
+      expect(callNode.assignTo).toBe("user");
     });
   });
 
@@ -472,7 +472,7 @@ describe("PHP Analyzer", () => {
       expect(mod.state).toBeDefined();
       const readFields = mod.state!.fields.filter((f) => f.access === "READS");
       expect(readFields).toHaveLength(1);
-      expect(readFields[0].name).toBe("$db");
+      expect(readFields[0].name).toBe("db");
     });
 
     it("should detect method calls as STATE WRITES", () => {
@@ -484,7 +484,7 @@ describe("PHP Analyzer", () => {
       expect(mod.state).toBeDefined();
       const writeFields = mod.state!.fields.filter((f) => f.access === "WRITES");
       expect(writeFields).toHaveLength(1);
-      expect(writeFields[0].name).toBe("$store");
+      expect(writeFields[0].name).toBe("store");
     });
   });
 
