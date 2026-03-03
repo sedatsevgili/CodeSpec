@@ -504,7 +504,8 @@ describe("TypeScript Generator: statements", () => {
     expect(code).toContain("switch (role) {");
     expect(code).toContain('case "admin": {');
     expect(code).toContain("default: {");
-    expect(code).toContain("break;");
+    // break is omitted when arm body ends with return
+    expect(code).not.toContain("break;");
   });
 
   it("should generate SET as const assignment", () => {

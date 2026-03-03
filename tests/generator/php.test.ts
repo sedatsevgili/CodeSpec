@@ -428,7 +428,7 @@ describe("PHP Generator: statements", () => {
       ],
     });
     const code = generatePhp(mod);
-    expect(code).toContain("if (x > 0) {");
+    expect(code).toContain("if ($x > 0) {");
     expect(code).toContain("} else {");
   });
 
@@ -464,7 +464,8 @@ describe("PHP Generator: statements", () => {
     expect(code).toContain("switch ($role) {");
     expect(code).toContain("case 'admin':");
     expect(code).toContain("default:");
-    expect(code).toContain("break;");
+    // break is omitted when arm body ends with return
+    expect(code).not.toContain("break;");
   });
 
   it("should generate SET as variable assignment", () => {

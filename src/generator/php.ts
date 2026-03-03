@@ -214,7 +214,7 @@ function generateWhen(node: WhenNode, depth: number): string {
   const indent = makeIndent(depth);
   const lines: string[] = [];
 
-  lines.push(`${indent}if (${node.condition}) {`);
+  lines.push(`${indent}if (${toPhpExpr(node.condition)}) {`);
   for (const stmt of node.body) {
     lines.push(generateStatement(stmt, depth + 1));
   }
@@ -248,7 +248,9 @@ function generateMatch(node: MatchNode, depth: number): string {
     for (const stmt of arm.body) {
       lines.push(generateStatement(stmt, depth + 2));
     }
-    lines.push(`${indent}        break;`);
+    if (!bodyEndsWithExit(arm.body)) {
+      lines.push(`${indent}        break;`);
+    }
   }
 
   lines.push(`${indent}}`);
@@ -260,7 +262,7 @@ function generateMatch(node: MatchNode, depth: number): string {
  */
 function generateSet(node: SetNode, depth: number): string {
   const indent = makeIndent(depth);
-  return `${indent}$${node.variable} = ${node.value};`;
+  return `${indent}$${node.variable} = ${toPhpExpr(node.value)};`;
 }
 
 /**
@@ -280,7 +282,7 @@ function generateCall(node: CallNode, depth: number): string {
  */
 function generateReturn(node: ReturnNode, depth: number): string {
   const indent = makeIndent(depth);
-  return `${indent}return $${node.value};`;
+  return `${indent}return ${toPhpExpr(node.value)};`;
 }
 
 /**
@@ -288,10 +290,13 @@ function generateReturn(node: ReturnNode, depth: number): string {
  */
 function generateFail(node: FailNode, depth: number): string {
   const indent = makeIndent(depth);
+  const className = node.error.endsWith("Error")
+    ? node.error.replace(/Error$/, "Exception")
+    : `${node.error}Exception`;
   if (node.message) {
-    return `${indent}throw new ${node.error}Exception(${phpString(node.message)});`;
+    return `${indent}throw new ${className}(${phpString(node.message)});`;
   }
-  return `${indent}throw new ${node.error}Exception();`;
+  return `${indent}throw new ${className}();`;
 }
 
 /**
@@ -410,11 +415,83 @@ function mapPrimitive(name: string): string {
 
 // ---- Helpers --------------------------------------------------------------
 
+/** Check whether a statement list ends with a return or throw (no break needed). */
+function bodyEndsWithExit(body: readonly StatementNode[]): boolean {
+  if (body.length === 0) return false;
+  const last = body[body.length - 1];
+  return last.type === "Return" || last.type === "Fail";
+}
+
 /**
  * Create a 4-space indentation string for the given nesting depth.
  */
 function makeIndent(depth: number): string {
   return "    ".repeat(depth);
+}
+
+/**
+ * Convert a CodeSpec expression to a PHP expression.
+ *
+ * - Bare identifiers become $variables
+ * - Literals (numbers, strings, booleans, null) pass through
+ * - Dotted access (a.b) becomes $a->b
+ * - Operators and complex expressions get identifiers prefixed with $
+ */
+function toPhpExpr(expr: string): string {
+  const trimmed = expr.trim();
+
+  // Literals that should not be prefixed
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return trimmed; // number
+  if (/^".*"$/.test(trimmed)) return trimmed; // double-quoted string
+  if (/^'.*'$/.test(trimmed)) return trimmed; // single-quoted string
+  if (trimmed === "true" || trimmed === "false") return trimmed;
+  if (trimmed === "null") return trimmed;
+  if (trimmed === "void") return "null";
+
+  // String concatenation: "Hello, " + name + "!"
+  if (trimmed.includes(" + ")) {
+    return trimmed
+      .split(" + ")
+      .map((p) => toPhpExpr(p.trim()))
+      .join(" . ");
+  }
+
+  // Simple identifier → $identifier
+  if (/^[a-zA-Z_]\w*$/.test(trimmed)) return `$${trimmed}`;
+
+  // Dotted property access: obj.prop → $obj->prop
+  if (/^[a-zA-Z_]\w*(\.\w+)+$/.test(trimmed)) {
+    const parts = trimmed.split(".");
+    return `$${parts[0]}->${parts.slice(1).join("->")}`;
+  }
+
+  // Method call on object: obj.method(args) → $obj->method(args)
+  if (/^[a-zA-Z_]\w*\./.test(trimmed)) {
+    const dotIdx = trimmed.indexOf(".");
+    return `$${trimmed.slice(0, dotIdx)}->${trimmed.slice(dotIdx + 1)}`;
+  }
+
+  // Negation: !expr → !$expr (for simple identifiers)
+  if (trimmed.startsWith("!")) {
+    return `!${toPhpExpr(trimmed.slice(1))}`;
+  }
+
+  // CALL expressions: CALL target(args) → $this->target(args)
+  const callMatch = trimmed.match(/^CALL\s+(\w+)\((.*)?\)$/);
+  if (callMatch) {
+    const target = callMatch[1];
+    const args = callMatch[2]
+      ? callMatch[2].split(",").map((a) => toPhpExpr(a.trim())).join(", ")
+      : "";
+    return `$this->${target}(${args})`;
+  }
+
+  // Compound expressions with operators — prefix bare identifiers
+  return trimmed.replace(/\b([a-zA-Z_]\w*)\b/g, (match) => {
+    const reserved = new Set(["true", "false", "null", "new", "instanceof", "and", "or", "not", "CALL"]);
+    if (reserved.has(match)) return match;
+    return `$${match}`;
+  });
 }
 
 /**

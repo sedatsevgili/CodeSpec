@@ -631,7 +631,7 @@ function analyzeThrowStatement(stmt: ThrowStatement): StatementNode {
 /** Analyze a return statement into a ReturnNode. */
 function analyzeReturnStatement(stmt: TsReturnStatement): StatementNode {
   const expr = stmt.getExpression();
-  const value = expr ? expr.getText() : "void";
+  const value = expr ? toCodeSpecExpr(expr.getText()) : "void";
   return returnNode({ value });
 }
 
@@ -683,7 +683,7 @@ function analyzeVariableStatement(
       }
     }
 
-    out.push(set({ variable: varName, value: initializer.getText() }));
+    out.push(set({ variable: varName, value: toCodeSpecExpr(initializer.getText()) }));
   }
 }
 
@@ -1011,4 +1011,85 @@ function buildStateNode(
   }
 
   return state({ fields });
+}
+
+// ---- Expression sanitization for CodeSpec output --------------------------
+
+/**
+ * Convert a raw TypeScript expression string into a CodeSpec-safe expression.
+ *
+ * Handles:
+ *  - Template literals: `Hello, ${name}!` -> "Hello, " + name + "!"
+ *  - Object literals: { a: 1, b: 2 } -> wrapped in parens to avoid brace issues
+ *  - Passes through everything else unchanged.
+ */
+function toCodeSpecExpr(text: string): string {
+  const trimmed = text.trim();
+
+  // Handle template literals: `...${expr}...`
+  if (trimmed.startsWith("`") && trimmed.endsWith("`")) {
+    return convertTemplateLiteral(trimmed);
+  }
+
+  // Handle object literals that start with { — wrap the value description
+  if (trimmed.startsWith("{")) {
+    return convertObjectLiteral(trimmed);
+  }
+
+  return trimmed;
+}
+
+/** Convert a JS template literal to string concatenation. */
+function convertTemplateLiteral(template: string): string {
+  // Remove surrounding backticks
+  const inner = template.slice(1, -1);
+  const parts: string[] = [];
+  let current = "";
+  let i = 0;
+
+  while (i < inner.length) {
+    if (inner[i] === "$" && inner[i + 1] === "{") {
+      // Push accumulated text as a string literal
+      if (current) {
+        parts.push(`"${current}"`);
+        current = "";
+      }
+      // Find matching closing brace
+      let depth = 1;
+      let j = i + 2;
+      while (j < inner.length && depth > 0) {
+        if (inner[j] === "{") depth++;
+        if (inner[j] === "}") depth--;
+        j++;
+      }
+      const expr = inner.slice(i + 2, j - 1);
+      parts.push(expr);
+      i = j;
+    } else {
+      current += inner[i];
+      i++;
+    }
+  }
+
+  if (current) {
+    parts.push(`"${current}"`);
+  }
+
+  return parts.length > 0 ? parts.join(" + ") : '""';
+}
+
+/** Convert an object literal to a descriptive SET value. */
+function convertObjectLiteral(obj: string): string {
+  // Extract key names from simple object literals like { a: x, b: y }
+  const inner = obj.slice(1, -1).trim();
+  const keyPattern = /(\w+)\s*:/g;
+  const keys: string[] = [];
+  let kMatch: RegExpMatchArray | null;
+  while ((kMatch = keyPattern.exec(inner)) !== null) {
+    keys.push(kMatch[1]);
+  }
+  if (keys.length > 0) {
+    return `new { ${keys.join(", ")} }`;
+  }
+  return `new {}`;
 }

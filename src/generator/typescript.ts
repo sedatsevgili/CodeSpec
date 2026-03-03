@@ -250,7 +250,9 @@ function generateMatch(node: MatchNode, depth: number): string {
     for (const stmt of arm.body) {
       lines.push(generateStatement(stmt, depth + 2));
     }
-    lines.push(`${indent}    break;`);
+    if (!bodyEndsWithExit(arm.body)) {
+      lines.push(`${indent}    break;`);
+    }
     lines.push(`${indent}  }`);
   }
 
@@ -291,10 +293,11 @@ function generateReturn(node: ReturnNode, depth: number): string {
  */
 function generateFail(node: FailNode, depth: number): string {
   const indent = makeIndent(depth);
+  const className = node.error.endsWith("Error") ? node.error : `${node.error}Error`;
   if (node.message) {
-    return `${indent}throw new ${node.error}Error(${JSON.stringify(node.message)});`;
+    return `${indent}throw new ${className}(${JSON.stringify(node.message)});`;
   }
-  return `${indent}throw new ${node.error}Error();`;
+  return `${indent}throw new ${className}();`;
 }
 
 /**
@@ -412,6 +415,13 @@ function mapPrimitive(name: string): string {
 }
 
 // ---- Helpers --------------------------------------------------------------
+
+/** Check whether a statement list ends with a return or throw (no break needed). */
+function bodyEndsWithExit(body: readonly StatementNode[]): boolean {
+  if (body.length === 0) return false;
+  const last = body[body.length - 1];
+  return last.type === "Return" || last.type === "Fail";
+}
 
 /**
  * Create a 2-space indentation string for the given nesting depth.
