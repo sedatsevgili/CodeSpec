@@ -681,13 +681,11 @@ function analyzePhpStatement(
 
   // expression statement (assignment, function call, method call, etc.)
   if (stmt.kind === "expressionstatement") {
-    analyzeExprStatement(
-      stmt as PhpExpressionStatement,
-      out,
-      depNames,
-      stateReads,
-      stateWrites,
-    );
+    const exprStmt = stmt as PhpExpressionStatement;
+    // Guard: php-parser may produce expression statements with no expression
+    // on parse errors (e.g. unrecognized syntax like float literal suffixes).
+    if (!exprStmt.expression) return;
+    analyzeExprStatement(exprStmt, out, depNames, stateReads, stateWrites);
     return;
   }
 
