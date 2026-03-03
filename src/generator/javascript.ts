@@ -291,13 +291,30 @@ function generateReturn(node: ReturnNode, depth: number): string {
  */
 function generateFail(node: FailNode, depth: number): string {
   const indent = makeIndent(depth);
-  const className = node.error.endsWith("Error") || node.error.endsWith("Exception")
-    ? node.error
-    : `${node.error}Error`;
+  const className = mapErrorName(node.error);
   if (node.message) {
     return `${indent}throw new ${className}(${JSON.stringify(node.message)});`;
   }
   return `${indent}throw new ${className}();`;
+}
+
+/** Map a CodeSpec error name to a JavaScript error class. */
+function mapErrorName(name: string): string {
+  const mapping: Record<string, string> = {
+    "Exception": "Error",
+    "RuntimeException": "Error",
+    "LogicException": "Error",
+    "InvalidArgumentException": "TypeError",
+    "RangeException": "RangeError",
+    "OverflowException": "RangeError",
+    "UnderflowException": "RangeError",
+    "TypeError": "TypeError",
+    "RangeError": "RangeError",
+  };
+  if (mapping[name]) return mapping[name];
+  if (name.endsWith("Error")) return name;
+  if (name.endsWith("Exception")) return name.replace(/Exception$/, "Error");
+  return `${name}Error`;
 }
 
 /**
